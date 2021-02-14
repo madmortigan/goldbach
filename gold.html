@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<!--Disclaimer: This code/webpage is provided with no warranty whatsoever. 
+Feel free to use, reuse, repurpose. Bob Gouzinis 2021-->
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+.buttonA {
+  background-color: #4CAF50;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  padding: 15px 32px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  margin: 4px 2px;
+  cursor: pointer;
+  font-size: 28px;
+}
+</style>
+</head>
+
+
+<body>
+<h3>Goldbach's conjecture helper: sums of pairs of primes</h3>
+Scaling factor: 
+<input type="number" id="scaleInput" value=12 min="1" max="50" onkeypress="keyPressHandler(event);">
+<canvas id="myCanvas" width="2400" height="1400" onclick="mouseClickHandler(event)"></canvas>
+<br />
+
+<center>
+Bob Gouzinis | <a href="http://gouzinis.com">gouzinis.com</a> | <a href="https://twitter.com/gouz66">@gouz66</a>
+<br />
+<h5>
+Disclaimer: This code/webpage is provided with no warranty whatsoever. 
+Feel free to use, reuse, repurpose. Bob Gouzinis 2021
+</h5>
+</center>
+
+<script>
+
+
+	var canvas = document.getElementById("myCanvas");
+	var ctx = canvas.getContext("2d");
+	ctx.font = "40px Arial";
+	var backgroundColor = "#AAAAFF";
+	var textBackgroundColor = "#EEEEEE";
+	var textBackgroundHighlight1 = "yellow"
+	var textBackgroundHighlight2 = "orange"	
+	var color1 = "#2222AA";
+	
+	
+	var deltaScaling = deltaScaling = document.getElementById("scaleInput").value;
+	var myCurrentMousePos = { _x: 0., _y: 0. }
+
+	var crossLinesVisible = true;
+	
+
+	function keyPressHandler(ev)
+	{
+		var kc = event.keyCode;
+		if (kc == 13)
+		{
+			deltaScaling = document.getElementById("scaleInput").value;
+		}
+	}
+
+
+	function getMousePos(canvas, evt) 
+	{
+		var rect = canvas.getBoundingClientRect();
+        return {
+			_x: evt.clientX - rect.left,
+			_y: evt.clientY - rect.top
+			};
+	}
+
+	canvas.addEventListener('mousemove', e => {
+		myCurrentMousePos = getMousePos(canvas, e);		 
+	});
+
+	
+	function test_prime(n)
+	{
+		if (n===1)
+			return false;
+		if(n === 2)
+			return true;
+
+		for(var x = 2; x < n/2+1; x++)
+		{
+			if(n % x === 0)
+				return false;
+		}
+		return true;  
+	}
+
+	
+	//finds the goldbach partition for number k
+	function findPartition(k)
+	{	
+		var part = [];
+		if (k<4)
+			return part;
+		
+		for (i=2; i<=k/2; ++i)
+		{
+			if (!test_prime(i))
+				continue;
+				
+			var j = k-i;
+			if (!test_prime(j))
+				continue;
+			
+			part.push(i);
+		}		
+		
+		return part;
+	}
+	
+	
+	
+	
+	
+	function pointsDistance(p, q)
+	{
+		var dx = p._x - q._x;
+		var dx2 = dx*dx;
+		var dy = p._y - q._y;
+		var dy2 = dy*dy;
+		
+		var len = Math.sqrt(dx2+dy2);
+		return len;
+	}
+	
+	function deltaVec(p,q)
+	{
+		var dx = q._x - p._x;
+		var dy = q._y - p._y;
+		return { _x: dx, _y: dy };
+	}
+	
+	
+	function normaliseVector(p, q)
+	{
+		var len = pointsDistance(p,q);
+		var dv = deltaVec(p,q);
+		dv._x = dv._x / len;
+		dv._y = dv._y / len;
+		return dv;
+	}
+	
+	//t is length parameter; pt1, pt2 are start/end of line. 
+	//Returns point.
+	function pointOfParameterOnLine(t, pt1, pt2)
+	{
+		var len = pointsDistance(pt1, pt2);
+		if (len < 0.00001)
+			return pt1;
+
+		var q = t / len;
+		
+		var dx = pt2._x - pt1._x;
+		var x = pt1._x + q*dx;		
+		var dy = pt2._y - pt1._y;
+		var y = pt1._y + q*dy;
+
+		var poi = { _x: x, _y: y }
+		return poi;
+	}
+	
+	function drawLine(pt1, pt2)
+	{
+		ctx.beginPath();
+		ctx.moveTo(pt1._x, pt1._y);
+		ctx.lineTo(pt2._x, pt2._y);
+		ctx.stroke();		
+	}
+	
+	
+	function drawCircle(pt, rad)
+	{
+		ctx.beginPath();
+		ctx.arc(pt._x, pt._y, rad, 0, Math.PI*2);
+		ctx.strokeStyle = "#220022";
+		ctx.stroke();
+		ctx.closePath();
+	}	
+	
+	
+	//text centered at x,y.
+	function drawText(txt0, x, y, height, withBackground)
+	{
+		var txt = " " + txt0 + " ";
+		var fontSize = height;
+		var fontSizeStr = fontSize.toString();
+		var fontStr = fontSizeStr + "px Arial";
+		ctx.font = fontStr;
+
+		var w = ctx.measureText(txt).width;
+		var x0 = x-w/2;
+		var y0 = y-height/2;
+		
+		if (withBackground)
+		{
+			//ctx.fillStyle = backgroundColor;
+			ctx.fillStyle = textBackgroundColor;
+			ctx.fillRect(x0, y0, w, height);		
+			ctx.fillStyle = color1;
+		}
+		
+		ctx.fillText(txt, x0, y+0.4*height);	
+	}
+	
+
+	//k=k-th gridline, or origin, en end point of axis,
+	//op opposite end point (so grid line will be parallel to or-op line)
+	//delta - delta between consecutive grid lines
+	function drawGridLine(k, or, en, op, delta)
+	{
+		var t = k*delta;
+		var p = pointOfParameterOnLine(t, or, en);
+		
+		var dx = op._x - or._x;
+		var dy = op._y - or._y;
+		
+		var q = { _x: p._x+dx, _y: p._y+dy }
+		drawLine(p, q);
+	}
+
+	//or = origin
+	//le = left end
+	function drawGrid(or, le, re, delta)
+	{
+		var d = pointsDistance(or, le);
+		var n = d  / delta;
+	
+		for (k=0; k<n; ++k)
+		{
+			if (test_prime(k))
+			{
+				drawGridLine(k, or, le, re, delta);	
+				drawGridLine(k, or, re, le, delta);
+			}
+		}
+	}
+
+	// c is c-th cross line; 
+	function drawCrossLine(c, or, le, re, delta)
+	{
+		var t = c*delta;
+		var p0 = pointOfParameterOnLine(t, or, le);
+		var p1 = pointOfParameterOnLine(t, or, re);
+		drawLine(p0, p1);	
+	}
+		
+	function drawCrossLines(or, le, re, delta)
+	{
+		if (!crossLinesVisible)
+			return;
+			
+		ctx.strokeStyle = "yellow";	
+			
+		var d = pointsDistance(or, le);
+		var n = d  / delta;
+
+		for (i=0; i<n; ++i)
+		{
+			if (i%2==0)
+				drawCrossLine(i, or, le, re, delta);
+		}
+	}
+		
+	
+	
+	function drawKPartition(k, origin, leftEnd, rightEnd, delta)
+	{
+		var part = findPartition(k);
+		var m = part.length;
+		if (m<1)
+			return;
+
+		var p = pointOfParameterOnLine(k*delta, origin, leftEnd);
+		var q = pointOfParameterOnLine(k*delta, origin, rightEnd);
+		var pq = pointsDistance(p, q);
+
+		var kStr = k.toString();
+		for (i=0; i<m; ++i)
+		{
+			var x = part[i];
+			var y = k - x;
+			
+			var tx = (x/k)*pq;
+			px = pointOfParameterOnLine(tx, p, q);
+			drawText(kStr, px._x, px._y, 0.85*delta, true); 
+			
+			var ty = (y/k)*pq;
+			py = pointOfParameterOnLine(ty, p, q);
+			drawText(kStr, py._x, py._y, 0.85*delta, true);
+		}
+	}
+	
+	function drawGridNumbers(origin, leftEnd, rightEnd, delta)
+	{
+		var d = pointsDistance(origin, leftEnd);
+		var n = d / delta;
+		
+		for (k=4; k<n; ++k)
+		{
+			drawKPartition(k, origin, leftEnd, rightEnd, delta);
+		}
+	}
+	
+		
+
+
+	//side is left/right (-1/1)
+	function drawAxis(st, en, delta, side)
+	{
+		drawLine(st, en);
+		
+		var d = pointsDistance(st, en);
+		var n = d / delta;
+		
+		var tickLen = 2;
+		var dx = side*tickLen;
+		var dy = tickLen;
+		
+		
+		var fontSize = delta / 2;
+		var fontSizeStr = fontSize.toString();
+		var fontStr = fontSizeStr + "px Arial";
+		ctx.font = fontStr;
+		
+		
+		for (j=0; j<n; ++j)
+		{
+			var t = j*delta;
+			var p = pointOfParameterOnLine(t, st, en);
+
+			var p0 = { _x: p._x+dx, _y: p._y-dy }
+			var p1 = { _x: p._x-dx, _y: p._y+dy }
+			drawLine (p0, p1);
+			
+			var str = j.toString();
+			drawText(str, p0._x, p0._y, 0.7*delta, true);
+		}			
+	}
+	
+	function drawAxes(origin, leftEnd, rightEnd, delta)
+	{
+		ctx.strokeStyle = color1;	
+
+		drawAxis(origin, leftEnd, delta, -1);
+		drawAxis(origin, rightEnd, delta, 1);
+	}
+	
+	
+	function drawGizmo()
+	{	
+		var rad = 50.;
+		var pt = { _x: 200, _y: 250 }
+		drawCircle(pt, rad);		
+		var pt2 = myCurrentMousePos;
+		var dir = normaliseVector(pt, pt2);
+		len = rad*2;
+		pt2._x = pt._x + len*dir._x;
+		pt2._y = pt._y + len*dir._y;
+		drawLine(pt, pt2);	
+	}
+	
+	
+	function draw()
+	{
+		ctx.fillStyle = backgroundColor;
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
+		
+		ctx.font = "20px Arial";
+		ctx.fillStyle = "#2222BB";		
+
+		var origin = { _x: canvas.width/2, _y: 20 }
+		var leftEnd = { _x: 5, _y: canvas.height-10 }
+		var rightEnd= { _x: canvas.width-5, _y: canvas.height-10 }	
+
+		var delta = deltaScaling;
+		
+		drawAxes(origin, leftEnd, rightEnd, delta);
+		drawGrid(origin, leftEnd, rightEnd, delta);
+		drawCrossLines(origin, leftEnd, rightEnd, delta);
+		
+		
+		drawGridNumbers(origin, leftEnd, rightEnd, delta);	
+		//drawGizmo();
+	}
+	
+	setInterval(draw, 50);
+	
+	
+	function mouseClickHandler(event)
+	{
+	
+	}
+	
+</script>
+
+
+</body>
+</html>
